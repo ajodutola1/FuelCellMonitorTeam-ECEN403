@@ -1,21 +1,36 @@
+#include <stdio.h>
 #include <string.h>
+#include <stdio.h>
+#include "sdkconfig.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/timers.h"
 #include "freertos/event_groups.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "esp_netif.h"
+#include "esp_http_client.h"
+#include "esp_crt_bundle.h"
 
 #include "lwip/err.h"
 #include "lwip/sys.h"
+
+#include <esp_event.h>
+#include <esp_system.h>
+#include <esp_http_server.h>
+
+// Define client certificate
+extern const uint8_t ClientCert_pem_start[] asm("_binary_ClientCert_pem_start");
+extern const uint8_t ClientCert_pem_end[]   asm("_binary_ClientCert_pem_end");
 
 /* The examples use WiFi configuration that you can set via project configuration menu
    If you'd rather not, just change the below entries to strings with
    the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
 */
-#define EXAMPLE_ESP_WIFI_SSID      "Rana's iPhone (2)"
+#define EXAMPLE_ESP_WIFI_SSID      "Rana"
 #define EXAMPLE_ESP_WIFI_PASS      "sillybug998"
 //#define EXAMPLE_ESP_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
 
@@ -37,12 +52,12 @@ static void event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
-	{
+{
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
-	{
+{
        // if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY)
-		//{
+//{
             esp_wifi_connect();
            // s_retry_num++;
             ESP_LOGI(TAG, "retry to connect to the AP");
@@ -83,7 +98,7 @@ void wifi_init_sta(void)
                                                         NULL,
                                                         &instance_got_ip));
 
-	ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
                     WIFI_EVENT_STA_DISCONNECTED,
                     &event_handler,
                     NULL,
@@ -96,7 +111,7 @@ void wifi_init_sta(void)
             /* Setting a password implies station will connect to all security modes including WEP/WPA.
              * However these modes are deprecated and not advisable to be used. Incase your Access point
              * doesn't support WPA2, these mode can be enabled by commenting below line */
-	     .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+    .threshold.authmode = WIFI_AUTH_WPA2_PSK,
 
             .pmf_cfg = {
                 .capable = true,
@@ -136,6 +151,51 @@ void wifi_init_sta(void)
     vEventGroupDelete(s_wifi_event_group);
 }
 
+// Client
+esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt)
+{
+    switch (evt->event_id)
+    {
+    case HTTP_EVENT_ON_DATA:
+        printf("HTTP_EVENT_ON_DATA: %.*s\n", evt->data_len, (char *)evt->data);
+        break;
+
+    default:
+        break;
+    }
+    return ESP_OK;
+}
+
+/*static void get_rest_function(){
+esp_http_client_config_t config_get = {
+.url = "https://firestore.googleapis.com/v1/projects/fuelcell403/databases/(default)/documents/my_collection",
+.method = HTTP_METHOD_GET,
+.cert_pem = (const char *)ClientCert_pem_start,
+.event_handler = client_event_get_handler};
+
+esp_http_client_handle_t client = esp_http_client_init(&config_get);
+esp_http_client_perform(client);
+esp_http_client_cleanup(client);
+}*/
+
+/*static void post_rest_function()
+{
+    esp_http_client_config_t config_post = {
+        .url = "https://fuelcell403-default-rtdb.firebaseio.com/",
+        .method = HTTP_METHOD_POST,
+        .cert_pem = NULL,
+        .event_handler = client_event_get_handler};
+
+    esp_http_client_handle_t client = esp_http_client_init(&config_post);
+
+    char  *post_data = "test...";
+    esp_http_client_set_post_field(client, post_data, strlen(post_data));
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+
+    esp_http_client_perform(client);
+    esp_http_client_cleanup(client);
+}*/
+
 void app_main(void)
 {
     //Initialize NVS
@@ -148,4 +208,6 @@ void app_main(void)
 
     ESP_LOGI(TAG, "ESP_WIFI_MODE_STA");
     wifi_init_sta();
+
+    //get_rest_function();
 }
